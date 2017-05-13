@@ -4,7 +4,6 @@ and include the results in your report.
 """
 import random
 
-
 class SearchTimeout(Exception):
     """Subclass base exception for code clarity. """
     pass
@@ -34,9 +33,23 @@ def custom_score(game, player):
     float
         The heuristic value of the current game state to the specified player.
     """
-    # TODO: finish this function!
-    raise NotImplementedError
+    if game.is_loser(player):
+        return float("-inf")
 
+    if game.is_winner(player):
+        return float("inf")
+
+    # Strategy: if there are many spaces available, then chase an opponent
+    # otherwise move  opposite direction to opponent.
+    player_loc = game.get_player_location(player)
+    opponent_loc = game.get_player_location(game.get_opponent(player))
+    total_size = game.width * game.height
+    blank_space_fraction = float(len(game.get_blank_spaces())) / total_size
+    d = distance(player_loc, opponent_loc)
+    return (0.5 - blank_space_fraction) * float(d)
+
+def distance(p1, p2):
+    return (p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2
 
 def custom_score_2(game, player):
     """Calculate the heuristic value of a game state from the point of view
@@ -60,8 +73,28 @@ def custom_score_2(game, player):
     float
         The heuristic value of the current game state to the specified player.
     """
-    # TODO: finish this function!
-    raise NotImplementedError
+    if game.is_loser(player):
+        return float("-inf")
+
+    if game.is_winner(player):
+        return float("inf")
+
+    # Strategy: make player "aggressive" and invaide available for opponent moves.
+    opponent = game.get_opponent(player)
+    opp_moves = game.get_legal_moves(opponent)
+    own_moves = game.get_legal_moves(player)
+    if game.active_player == player:
+        player_loc = game.get_player_location(player)
+        for m in opp_moves:
+            if m == player_loc:
+                return 10
+        return float(len(own_moves))
+    else:
+        opponent_loc = game.get_player_location(opponent)
+        for m in own_moves:
+            if m == opponent_loc:
+                return -10
+        return float(len(own_moves))
 
 
 def custom_score_3(game, player):
@@ -86,8 +119,19 @@ def custom_score_3(game, player):
     float
         The heuristic value of the current game state to the specified player.
     """
-    # TODO: finish this function!
-    raise NotImplementedError
+
+    # Strategy: make player prefer discovering of empty fields and minimise distance of current player to blank spaces
+    own_moves = len(game.get_legal_moves(player))
+    opp_moves = len(game.get_legal_moves(game.get_opponent(player)))
+
+    player_loc = game.get_player_location(player)
+    score = float(own_moves - opp_moves)
+    # strategy is to fill diagonal and center crosses
+    if player_loc[0] == player_loc[1] or (player_loc[0] % 2 == player_loc[1] % 2):
+        score += 0.5
+    # if number of moves equal - select with biggest number of moves
+    score += 0.2 * own_moves
+    return score
 
 
 class IsolationPlayer:
@@ -209,12 +253,59 @@ class MinimaxPlayer(IsolationPlayer):
                 each helper function or else your agent will timeout during
                 testing.
         """
+        self.timeout_test()
+
+        moves_scores = dict([(move, self.min_value(game.forecast_move(move), depth - 1)) for move in self.moves(game)])
+        if len(moves_scores) == 0:
+            return (-1, -1)
+        return max(moves_scores, key= moves_scores.get)
+
+    def timeout_test(self):
         if self.time_left() < self.TIMER_THRESHOLD:
             raise SearchTimeout()
 
-        # TODO: finish this function!
-        raise NotImplementedError
+    def moves(self, game):
+        self.timeout_test()
+        if self is game.active_player:
+            return game.get_legal_moves(self)
+        else:
+            return game.get_legal_moves(game.get_opponent(self))
 
+    def min_value(self, game, depth):
+        self.timeout_test()
+        if self.cutoff_test(game, depth):
+            return self.evaluate(game)
+
+        value = float("inf")
+        for move in self.moves(game):
+            self.timeout_test()
+            value = min(value, self.max_value(game.forecast_move(move), depth - 1))
+        return value
+
+    def max_value(self, game, depth):
+        self.timeout_test()
+        if self.cutoff_test(game, depth):
+            return self.evaluate(game)
+
+        value = float("-inf")
+        for move in self.moves(game):
+            self.timeout_test()
+            value = max(value, self.min_value(game.forecast_move(move), depth - 1))
+        return value
+
+    def cutoff_test(self, game, depth):
+        self.timeout_test()
+        if depth == 0:
+            return True
+        if game.is_winner(self):
+            return True
+        if game.is_loser(self):
+            return True
+        return False
+
+    def evaluate(self, game):
+        self.timeout_test()
+        return self.score(game, self)
 
 class AlphaBetaPlayer(IsolationPlayer):
     """Game-playing agent that chooses a move using iterative deepening minimax
@@ -254,8 +345,21 @@ class AlphaBetaPlayer(IsolationPlayer):
         """
         self.time_left = time_left
 
-        # TODO: finish this function!
-        raise NotImplementedError
+        # Initialize the best move so that this function returns something
+        # in case the search fails due to timeout
+        best_move = (-1, -1)
+        try:
+            depth = 0
+            for x in iter(int, 1):
+                depth = depth + 1
+                best_move = self.alphabeta(game, depth)
+
+        except SearchTimeout:
+            # Handle any actions required after timeout as needed
+            return best_move
+
+        # Return the best move from the last completed search iteration
+        return best_move
 
     def alphabeta(self, game, depth, alpha=float("-inf"), beta=float("inf")):
         """Implement depth-limited minimax search with alpha-beta pruning as
@@ -302,8 +406,71 @@ class AlphaBetaPlayer(IsolationPlayer):
                 each helper function or else your agent will timeout during
                 testing.
         """
+        self.timeout_test()
+
+        value = float("-inf"); a = float("-inf"); b = float("inf"); max_move = (-1, -1)
+        for move in self.moves(game):
+            self.timeout_test()
+            result = self.min_value(game.forecast_move(move), depth - 1, a, b)
+            if result > value:
+                value = result; max_move = move
+            if value >= b:
+                return move
+            a = max(value, a)
+        return max_move
+
+    def timeout_test(self):
         if self.time_left() < self.TIMER_THRESHOLD:
             raise SearchTimeout()
 
-        # TODO: finish this function!
-        raise NotImplementedError
+    def moves(self, game):
+        self.timeout_test()
+        if self is game.active_player:
+            return game.get_legal_moves(self)
+        else:
+            return game.get_legal_moves(game.get_opponent(self))
+
+    def max_value(self, game, depth, alpha, beta):
+        self.timeout_test()
+        if self.cutoff_test(game, depth):
+            return self.evaluate(game)
+
+        value = float("-inf"); a = alpha; b = beta;
+        for move in self.moves(game):
+            self.timeout_test()
+            new_state = game.forecast_move(move)
+            value = max(value, self.min_value(new_state, depth - 1, a, b))
+            if value >= b:
+                return value
+            a = max(value, a)
+        return value
+
+
+    def min_value(self, game, depth, alpha, beta):
+        self.timeout_test()
+        if self.cutoff_test(game, depth):
+            return self.evaluate(game)
+
+        value = float("inf"); a = alpha; b = beta;
+        for move in self.moves(game):
+            self.timeout_test()
+            new_state = game.forecast_move(move)
+            value = min(value, self.max_value(new_state, depth - 1, a, b))
+            if value <= a:
+                return value
+            b = min(value, b)
+        return value
+
+    def cutoff_test(self, game, depth):
+        self.timeout_test()
+        if depth == 0:
+            return True
+        if game.is_winner(self):
+            return True
+        if game.is_loser(self):
+            return True
+        return False
+
+    def evaluate(self, game):
+        self.timeout_test()
+        return self.score(game, self)
