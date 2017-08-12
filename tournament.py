@@ -20,11 +20,12 @@ from collections import namedtuple
 from isolation import Board
 from sample_players import (RandomPlayer, open_move_score,
                             improved_score, center_score)
-from game_agent import (MinimaxPlayer, AlphaBetaPlayer, custom_score,
+from game_agent import (MinimaxPlayer, AlphaBetaPlayer, MonteCarloPlayer, custom_score,
                         custom_score_2, custom_score_3)
 
 NUM_MATCHES = 5  # number of matches against each opponent
 TIME_LIMIT = 150  # number of milliseconds before timeout
+
 
 DESCRIPTION = """
 This script evaluates the performance of the custom_score evaluation
@@ -130,11 +131,13 @@ def main():
 
     # Define two agents to compare -- these agents will play from the same
     # starting position against the same adversaries in the tournament
+    monteCarlo=Agent(MonteCarloPlayer(score_fn=custom_score), "Monte_Carlo")
+
     test_agents = [
-        Agent(AlphaBetaPlayer(score_fn=improved_score), "AB_Improved"),
-        Agent(AlphaBetaPlayer(score_fn=custom_score), "AB_Custom"),
-        Agent(AlphaBetaPlayer(score_fn=custom_score_2), "AB_Custom_2"),
-        Agent(AlphaBetaPlayer(score_fn=custom_score_3), "AB_Custom_3")
+       Agent(monteCarlo.player, "Monte_Carlo"),
+       Agent(AlphaBetaPlayer(score_fn=custom_score_2), "AB_Custom_2"),
+       Agent(AlphaBetaPlayer(score_fn=custom_score_3), "AB_Custom_3"),
+       Agent(AlphaBetaPlayer(score_fn=improved_score), "AB_Improved"),
     ]
 
     # Define a collection of agents to compete against the test agents
@@ -142,10 +145,7 @@ def main():
         Agent(RandomPlayer(), "Random"),
         Agent(MinimaxPlayer(score_fn=open_move_score), "MM_Open"),
         Agent(MinimaxPlayer(score_fn=center_score), "MM_Center"),
-        Agent(MinimaxPlayer(score_fn=improved_score), "MM_Improved"),
-        Agent(AlphaBetaPlayer(score_fn=open_move_score), "AB_Open"),
-        Agent(AlphaBetaPlayer(score_fn=center_score), "AB_Center"),
-        Agent(AlphaBetaPlayer(score_fn=improved_score), "AB_Improved")
+        Agent(MinimaxPlayer(score_fn=improved_score), "MM_Improved")
     ]
 
     print(DESCRIPTION)
